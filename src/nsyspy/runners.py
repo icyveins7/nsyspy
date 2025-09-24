@@ -16,15 +16,16 @@ class Runner:
             print(c)
         subprocess.run(c)
 
-    def profile(self, target: str, *args, outputname: str | None = None, verbose: bool = False) -> str:
-        if outputname is None:
+    def profile(self, target: list[str] | str, *profile_args, reportname: str | None = None, verbose: bool = False) -> str:
+        if reportname is None:
             now = dt.datetime.now().timestamp()
-            outputname = f"report_{int(now)}.nsys-rep"
-        command = ["profile", f"--output={outputname}", *args, target]
+            reportname = f"report_{int(now)}.nsys-rep"
+        command = ["profile", f"--output={reportname}", *profile_args]
+        command.extend(target)
         self.execute(command, verbose)
-        if not os.path.exists(outputname):
-            raise FileNotFoundError(f"Could not find {outputname}")
-        return outputname
+        if not os.path.exists(reportname):
+            raise FileNotFoundError(f"Could not find {reportname}")
+        return reportname
 
     def export(self, target: str, *args, verbose: bool = False) -> NsysSqlite:
         # Enforce sqlite
