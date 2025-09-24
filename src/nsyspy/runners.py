@@ -26,7 +26,7 @@ class Runner:
             raise FileNotFoundError(f"Could not find {outputname}")
         return outputname
 
-    def export(self, target: str, *args, verbose: bool = False) -> str:
+    def export(self, target: str, *args, verbose: bool = False) -> NsysSqlite:
         # Enforce sqlite
         command = ["export", "--type=sqlite", *args, target]
         outputname = os.path.splitext(target)[0] + ".sqlite"
