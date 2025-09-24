@@ -1,7 +1,6 @@
 import sqlite3 as sq
 import sew
 from sew.condition import Condition
-from pprint import pprint
 import dataclasses
 
 @dataclasses.dataclass
@@ -100,12 +99,10 @@ class NsysSqlite(sew.Database):
         else:
             raise ValueError("Must provide at least one of viaShortName, viaDemangledName, viaMangledName")
 
-        pprint(idstringmap)
         stmt = self['CUPTI_ACTIVITY_KIND_KERNEL'].select(
             "*",
             [str(Condition(filterColumn).IN([str(i) for i in idstringmap]))]
         )
-        print(stmt)
 
         rows = self.fetchall()
         # Parse into dataclass
