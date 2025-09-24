@@ -1,6 +1,7 @@
 import subprocess
 import os
 import datetime as dt
+from .analysis import NsysSqlite
 
 class Runner:
     def __init__(self, nsys_path: str = "nsys"):
@@ -32,5 +33,5 @@ class Runner:
         self.execute(command, verbose)
         if not os.path.exists(outputname):
             raise FileNotFoundError(f"Could not find {outputname}")
-        return outputname
+        return NsysSqlite(outputname)
 
