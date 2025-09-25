@@ -69,10 +69,15 @@ class NsysSqlite(sew.Database):
     def path(self) -> str:
         return self.dbpath
 
-    def findStringIdsContaining(self, string: str):
+    def findStringIdsContaining(self, stringlist: list[str]):
+        condition = [
+            f"(value LIKE '%{string}%')"
+            for string in stringlist
+        ]
+        condition = " OR ".join(condition)
         self['StringIds'].select(
             ["id", "value"],
-            f"value LIKE '%{string}%'")
+            condition)
         stringmap = {row['id']: row['value'] for row in self.fetchall()}
         return stringmap
 
@@ -82,24 +87,27 @@ class NsysSqlite(sew.Database):
 
     def getKernels(
         self,
-        viaShortName: str | None = None,
-        viaDemangledName: str | None = None,
-        viaMangledName: str | None = None
+        viaShortNames: str | list[str] | None = None,
+        viaDemangledNames: str | list[str] | None = None,
+        viaMangledNames: str | list[str] | None = None
     ):
         # Try in order
-        if viaShortName is not None:
-            idstringmap = self.findStringIdsContaining(viaShortName)
+        if viaShortNames is not None:
+            viaShortNames = [viaShortNames] if isinstance(viaShortNames, str) else viaShortNames
+            idstringmap = self.findStringIdsContaining(viaShortNames)
             filterColumn = "shortName"
-        elif viaDemangledName is not None:
-            idstringmap = self.findStringIdsContaining(viaDemangledName)
+        elif viaDemangledNames is not None:
+            viaDemangledNames = [viaDemangledNames] if isinstance(viaDemangledNames, str) else viaDemangledNames
+            idstringmap = self.findStringIdsContaining(viaDemangledNames)
             filterColumn = "demangledName"
-        elif viaMangledName is not None:
-            idstringmap = self.findStringIdsContaining(viaMangledName)
+        elif viaMangledNames is not None:
+            viaMangledNames = [viaMangledNames] if isinstance(viaMangledNames, str) else viaMangledNames
+            idstringmap = self.findStringIdsContaining(viaMangledNames)
             filterColumn = "mangledName"
         else:
             raise ValueError("Must provide at least one of viaShortName, viaDemangledName, viaMangledName")
 
-        stmt = self['CUPTI_ACTIVITY_KIND_KERNEL'].select(
+        self['CUPTI_ACTIVITY_KIND_KERNEL'].select(
             "*",
             [str(Condition(filterColumn).IN([str(i) for i in idstringmap]))]
         )
@@ -116,9 +124,9 @@ class NsysSqlite(sew.Database):
                 streamId=row['streamId'],
                 correlationId=row['correlationId'],
                 globalPid=row['globalPid'],
-                demangledName=idstringmap[row['demangledName']],
-                shortName=idstringmap[row['shortName']],
-                mangledName=idstringmap[row['mangledName']],
+                demangledName=self.findStringMatchingId(row['demangledName']),
+                shortName=self.findStringMatchingId(row['shortName']),
+                mangledName=self.findStringMatchingId(row['mangledName']),
                 launchType=row['launchType'],
                 cacheConfig=row['cacheConfig'],
                 registersPerThread=row['registersPerThread'],
