@@ -83,7 +83,72 @@ class NsysSqlite(sew.Database):
 
     def findStringMatchingId(self, id: int):
         self['StringIds'].select("value", f"id = {id}")
-        return str(self.fetchone())
+        return str(self.fetchone()['value'])
+
+    def getKernelsBetween(
+        self,
+        start: float | None = None,
+        end: float | None = None
+    ):
+        conditions = []
+        if start is not None:
+            conditions.append(
+                f"start > {start}"
+            )
+        if end is not None:
+            conditions.append(
+                f"end < {end}"
+            )
+        self['CUPTI_ACTIVITY_KIND_KERNEL'].select(
+            "*", conditions
+        )
+        rows = self.fetchall()
+        # Parse into dataclass
+        kernels = [
+            CuptiActivityKindKernel(
+                start=row['start'],
+                end=row['end'],
+                deviceId=row['deviceId'],
+                contextId=row['contextId'],
+                greenContextId=row['greenContextId'],
+                streamId=row['streamId'],
+                correlationId=row['correlationId'],
+                globalPid=row['globalPid'],
+                demangledName=self.findStringMatchingId(row['demangledName']),
+                shortName=self.findStringMatchingId(row['shortName']),
+                mangledName=self.findStringMatchingId(row['mangledName']),
+                launchType=row['launchType'],
+                cacheConfig=row['cacheConfig'],
+                registersPerThread=row['registersPerThread'],
+                gridX=row['gridX'],
+                gridY=row['gridY'],
+                gridZ=row['gridZ'],
+                blockX=row['blockX'],
+                blockY=row['blockY'],
+                blockZ=row['blockZ'],
+                staticSharedMemory=row['staticSharedMemory'],
+                dynamicSharedMemory=row['dynamicSharedMemory'],
+                localMemoryPerThread=row['localMemoryPerThread'],
+                localMemoryTotal=row['localMemoryTotal'],
+                gridId=row['gridId'],
+                sharedMemoryExecuted=row['sharedMemoryExecuted'],
+                graphNodeId=row['graphNodeId'],
+                sharedMemoryLimitConfig=row['sharedMemoryLimitConfig'],
+                # qmdBulkReleaseDone=row['qmdBulkReleaseDone'],
+                # qmdPreexitDone=row['qmdPreexitDone'],
+                # qmdLastCtaDone=row['qmdLastCtaDone'],
+                # graphId=row['graphId'],
+                # clusterX=row['clusterX'],
+                # clusterY=row['clusterY'],
+                # clusterZ=row['clusterZ'],
+                # clusterSchedulingPolicy=row['clusterSchedulingPolicy'],
+                # maxPotentialClusterSize=row['maxPotentialClusterSize'],
+                # maxActiveClusters=row['maxActiveClusters']
+            )
+            for row in rows
+        ]
+        return kernels
+
 
     def getKernels(
         self,
