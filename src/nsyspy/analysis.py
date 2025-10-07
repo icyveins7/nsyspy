@@ -9,6 +9,7 @@ class CuptiActivityKindKernel:
     Dataclass representing a row in the CUPTI_ACTIVITY_KIND_KERNEL table.
     This is probably the most pertinent table in GPU kernel benchmarks.
     """
+    rowid: int
     start: int
     end: int
     deviceId: int
@@ -37,16 +38,16 @@ class CuptiActivityKindKernel:
     sharedMemoryExecuted: int
     graphNodeId: int
     sharedMemoryLimitConfig: int
-    # qmdBulkReleaseDone: int
-    # qmdPreexitDone: int
-    # qmdLastCtaDone: int
-    # graphId: int
-    # clusterX: int
-    # clusterY: int
-    # clusterZ: int
-    # clusterSchedulingPolicy: int
-    # maxPotentialClusterSize: int
-    # maxActiveClusters: int
+    qmdBulkReleaseDone: int | None = None
+    qmdPreexitDone: int | None = None
+    qmdLastCtaDone: int | None = None
+    graphId: int | None = None
+    clusterX: int | None = None
+    clusterY: int | None = None
+    clusterZ: int | None = None
+    clusterSchedulingPolicy: int | None = None
+    maxPotentialClusterSize: int | None = None
+    maxActiveClusters: int | None = None
 
     def duration(self) -> int:
         return self.end - self.start
@@ -69,7 +70,7 @@ class NsysSqlite(sew.Database):
     def path(self) -> str:
         return self.dbpath
 
-    def findStringIdsContaining(self, stringlist: list[str]):
+    def findStringIdsContaining(self, stringlist: list[str]) -> dict[int, str]:
         condition = [
             f"(value LIKE '%{string}%')"
             for string in stringlist
@@ -81,7 +82,7 @@ class NsysSqlite(sew.Database):
         stringmap = {row['id']: row['value'] for row in self.fetchall()}
         return stringmap
 
-    def findStringMatchingId(self, id: int):
+    def findStringMatchingId(self, id: int) -> str:
         self['StringIds'].select("value", f"id = {id}")
         return str(self.fetchone()['value'])
 
@@ -89,7 +90,7 @@ class NsysSqlite(sew.Database):
         self,
         start: float | None = None,
         end: float | None = None
-    ):
+    ) -> list[CuptiActivityKindKernel]:
         conditions = []
         if start is not None:
             conditions.append(
@@ -100,53 +101,11 @@ class NsysSqlite(sew.Database):
                 f"end < {end}"
             )
         self['CUPTI_ACTIVITY_KIND_KERNEL'].select(
-            "*", conditions
+            "rowid, *", conditions
         )
         rows = self.fetchall()
         # Parse into dataclass
-        kernels = [
-            CuptiActivityKindKernel(
-                start=row['start'],
-                end=row['end'],
-                deviceId=row['deviceId'],
-                contextId=row['contextId'],
-                greenContextId=row['greenContextId'],
-                streamId=row['streamId'],
-                correlationId=row['correlationId'],
-                globalPid=row['globalPid'],
-                demangledName=self.findStringMatchingId(row['demangledName']),
-                shortName=self.findStringMatchingId(row['shortName']),
-                mangledName=self.findStringMatchingId(row['mangledName']),
-                launchType=row['launchType'],
-                cacheConfig=row['cacheConfig'],
-                registersPerThread=row['registersPerThread'],
-                gridX=row['gridX'],
-                gridY=row['gridY'],
-                gridZ=row['gridZ'],
-                blockX=row['blockX'],
-                blockY=row['blockY'],
-                blockZ=row['blockZ'],
-                staticSharedMemory=row['staticSharedMemory'],
-                dynamicSharedMemory=row['dynamicSharedMemory'],
-                localMemoryPerThread=row['localMemoryPerThread'],
-                localMemoryTotal=row['localMemoryTotal'],
-                gridId=row['gridId'],
-                sharedMemoryExecuted=row['sharedMemoryExecuted'],
-                graphNodeId=row['graphNodeId'],
-                sharedMemoryLimitConfig=row['sharedMemoryLimitConfig'],
-                # qmdBulkReleaseDone=row['qmdBulkReleaseDone'],
-                # qmdPreexitDone=row['qmdPreexitDone'],
-                # qmdLastCtaDone=row['qmdLastCtaDone'],
-                # graphId=row['graphId'],
-                # clusterX=row['clusterX'],
-                # clusterY=row['clusterY'],
-                # clusterZ=row['clusterZ'],
-                # clusterSchedulingPolicy=row['clusterSchedulingPolicy'],
-                # maxPotentialClusterSize=row['maxPotentialClusterSize'],
-                # maxActiveClusters=row['maxActiveClusters']
-            )
-            for row in rows
-        ]
+        kernels = [CuptiActivityKindKernel(**row) for row in rows]
         return kernels
 
 
@@ -155,7 +114,7 @@ class NsysSqlite(sew.Database):
         viaShortNames: str | list[str] | None = None,
         viaDemangledNames: str | list[str] | None = None,
         viaMangledNames: str | list[str] | None = None
-    ):
+    ) -> list[CuptiActivityKindKernel]:
         # Try in order
         if viaShortNames is not None:
             viaShortNames = [viaShortNames] if isinstance(viaShortNames, str) else viaShortNames
@@ -173,55 +132,43 @@ class NsysSqlite(sew.Database):
             raise ValueError("Must provide at least one of viaShortName, viaDemangledName, viaMangledName")
 
         self['CUPTI_ACTIVITY_KIND_KERNEL'].select(
-            "*",
+            "rowid, *",
             [str(Condition(filterColumn).IN([str(i) for i in idstringmap]))]
         )
 
         rows = self.fetchall()
         # Parse into dataclass
-        kernels = [
-            CuptiActivityKindKernel(
-                start=row['start'],
-                end=row['end'],
-                deviceId=row['deviceId'],
-                contextId=row['contextId'],
-                greenContextId=row['greenContextId'],
-                streamId=row['streamId'],
-                correlationId=row['correlationId'],
-                globalPid=row['globalPid'],
-                demangledName=self.findStringMatchingId(row['demangledName']),
-                shortName=self.findStringMatchingId(row['shortName']),
-                mangledName=self.findStringMatchingId(row['mangledName']),
-                launchType=row['launchType'],
-                cacheConfig=row['cacheConfig'],
-                registersPerThread=row['registersPerThread'],
-                gridX=row['gridX'],
-                gridY=row['gridY'],
-                gridZ=row['gridZ'],
-                blockX=row['blockX'],
-                blockY=row['blockY'],
-                blockZ=row['blockZ'],
-                staticSharedMemory=row['staticSharedMemory'],
-                dynamicSharedMemory=row['dynamicSharedMemory'],
-                localMemoryPerThread=row['localMemoryPerThread'],
-                localMemoryTotal=row['localMemoryTotal'],
-                gridId=row['gridId'],
-                sharedMemoryExecuted=row['sharedMemoryExecuted'],
-                graphNodeId=row['graphNodeId'],
-                sharedMemoryLimitConfig=row['sharedMemoryLimitConfig'],
-                # qmdBulkReleaseDone=row['qmdBulkReleaseDone'],
-                # qmdPreexitDone=row['qmdPreexitDone'],
-                # qmdLastCtaDone=row['qmdLastCtaDone'],
-                # graphId=row['graphId'],
-                # clusterX=row['clusterX'],
-                # clusterY=row['clusterY'],
-                # clusterZ=row['clusterZ'],
-                # clusterSchedulingPolicy=row['clusterSchedulingPolicy'],
-                # maxPotentialClusterSize=row['maxPotentialClusterSize'],
-                # maxActiveClusters=row['maxActiveClusters']
-            )
-            for row in rows
-        ]
+        kernels = [CuptiActivityKindKernel(**row) for row in rows]
         return kernels
+
+    def getKernelsAfter(self, kernel: CuptiActivityKindKernel, count: int = 1) -> list[CuptiActivityKindKernel]:
+        self["CUPTI_ACTIVITY_KIND_KERNEL"].select(
+            "rowid, *",
+            [f"rowid > {kernel.rowid}"]
+        )
+        # sew has no support for LIMIT yet so we just iterate until we reach it
+        r = list()
+        for _ in range(count):
+            r.append(CuptiActivityKindKernel(**self.fetchone()))
+        return r
+
+    def getCudaApiCall(self, target):
+        if isinstance(target, int):
+            correlationId = target
+
+        elif isinstance(target, CuptiActivityKindKernel):
+            correlationId = target.correlationId
+
+        else:
+            raise TypeError("Must be int or CuptiActivityKindKernel (for now)")
+
+        self["CUPTI_ACTIVITY_KIND_RUNTIME"].select(
+            "rowid, *",
+            [f"correlationId={correlationId}"]
+        )
+
+        apicalls = self.fetchall()
+
+        return apicalls
 
 
