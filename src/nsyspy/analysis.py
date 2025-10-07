@@ -1,4 +1,4 @@
-import sqlite3 as sq
+from __future__ import annotations
 import sew
 from sew.condition import Condition
 import dataclasses
@@ -18,9 +18,9 @@ class CuptiActivityKindKernel:
     streamId: int
     correlationId: int
     globalPid: int
-    demangledName: str
-    shortName: str
-    mangledName: str
+    demangledName: int
+    shortName: int
+    mangledName: int
     launchType: int
     cacheConfig: int
     registersPerThread: int
@@ -49,17 +49,65 @@ class CuptiActivityKindKernel:
     maxPotentialClusterSize: int | None = None
     maxActiveClusters: int | None = None
 
+    def shortNameString(self, db: NsysSqlite) -> str:
+        return db.findStringMatchingId(self.shortName)
+
+    def mangledNameString(self, db: NsysSqlite) -> str:
+        return db.findStringMatchingId(self.mangledName)
+
+    def demangledNameString(self, db: NsysSqlite) -> str:
+        return db.findStringMatchingId(self.demangledName)
+
+    # Shortcut to get duration from start of A to end of B
+    def __sub__(self, other: CuptiActivityKindKernel) -> int:
+        return self.end - other.start
+
+    @property
     def duration(self) -> int:
         return self.end - self.start
 
+    @property
     def grid(self) -> tuple[int, int, int]:
         return (self.gridX, self.gridY, self.gridZ)
 
+    @property
     def blocks(self) -> tuple[int, int, int]:
         return (self.blockX, self.blockY, self.blockZ)
 
     # def clusters(self) -> tuple[int, int, int]:
     #     return (self.clusterX, self.clusterY, self.clusterZ)
+
+@dataclasses.dataclass
+class NvtxEvent:
+    rowid: int
+    start: int
+    end: int
+    eventType: int
+    rangeId: int
+    category: int
+    color: int
+    text: str
+    globalTid: int
+    endGlobalTid: int
+    textId: int
+    domainId: int
+    uint64Value: int
+    int64Value: int
+    doubleValue: float
+    uint32Value: int
+    int32Value: int
+    floatValue: float
+    jsonTextId: int
+    jsonText: str
+    binaryData: str
+
+    def textIdString(self, db: NsysSqlite) -> str:
+        return db.findStringMatchingId(self.textId)
+
+    def getProjection(self, db: NsysSqlite):
+        apicalls = db.getCudaApiCallsBetween(self.start, self.end)
+        kernels = db.getKernelsFromApiCalls(apicalls)
+        return kernels
 
 
 class NsysSqlite(sew.Database):
@@ -88,17 +136,13 @@ class NsysSqlite(sew.Database):
 
     def getKernelsBetween(
         self,
-        start: float | None = None,
+        start: float = 0.0,
         end: float | None = None
     ) -> list[CuptiActivityKindKernel]:
-        conditions = []
-        if start is not None:
-            conditions.append(
-                f"start > {start}"
-            )
+        conditions = [f"start >= {start}"]
         if end is not None:
             conditions.append(
-                f"end < {end}"
+                f"end <= {end}"
             )
         self['CUPTI_ACTIVITY_KIND_KERNEL'].select(
             "rowid, *", conditions
@@ -152,7 +196,8 @@ class NsysSqlite(sew.Database):
             r.append(CuptiActivityKindKernel(**self.fetchone()))
         return r
 
-    def getCudaApiCall(self, target):
+    def getCudaApiCallFor(self, target):
+        #TODO: make dataclass
         if isinstance(target, int):
             correlationId = target
 
@@ -170,5 +215,44 @@ class NsysSqlite(sew.Database):
         apicalls = self.fetchall()
 
         return apicalls
+
+    def getCudaApiCallsBetween(self, start: float = 0.0, end: float | None = None):
+        #TODO: make dataclass
+        conditions = [f"start >= {start}"]
+        if end is not None:
+            conditions.append(
+                f"end <= {end}"
+            )
+        self["CUPTI_ACTIVITY_KIND_RUNTIME"].select(
+            "rowid, *", conditions
+        )
+        apicalls = self.fetchall()
+        return apicalls
+
+    def getKernelsFromApiCalls(self, rows):
+        self["CUPTI_ACTIVITY_KIND_KERNEL"].select(
+            "rowid, *",
+            [str(Condition("correlationId").IN([str(row['correlationId']) for row in rows]))]
+        )
+        kernels = [CuptiActivityKindKernel(**row) for row in self.fetchall()]
+        return kernels
+
+    def getNvtxBetween(self, start: float = 0.0, end: float | None = None) -> list[NvtxEvent]:
+        conditions = [f"start >= {start}"]
+        if end is not None:
+            conditions.append(
+                f"end <= {end}"
+            )
+        try:
+            self['NVTX_EVENTS'].select(
+                "rowid, *", conditions
+            )
+            rows = self.fetchall()
+            # Parse into dataclass
+            nvtx = [NvtxEvent(**row) for row in rows]
+            return nvtx
+
+        except KeyError as e:
+            raise KeyError(f"Could not find table: {e}; it is likely there are no NVTX events profiled.")
 
 
