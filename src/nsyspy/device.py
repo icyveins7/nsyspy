@@ -2,27 +2,27 @@ from .analysis import CuptiActivityKindKernel
 
 import dataclasses
 from enum import IntEnum
-from math import inf, prod
+from math import inf
 
 class SMResourceLimitation(IntEnum):
     NONE = 0
     THREADS = 1
     REGISTERS = 2
     SHARED_MEMORY = 3
-    WARPS = 4
+    # WARPS = 4 # unnecessary, threads is always an exact factor
 
 @dataclasses.dataclass
 class ComputeCapability:
     max_resident_blocks_per_sm: int
-    max_resident_warps_per_sm: int
     max_resident_threads_per_sm: int
     max_registers_per_sm: int
     max_shmem_per_sm: int
+    # max_resident_warps_per_sm: int
 
 class CC75(ComputeCapability):
     def __init__(self):
         self.max_resident_blocks_per_sm = 16
-        self.max_resident_warps_per_sm = 32
+        # self.max_resident_warps_per_sm = 32
         self.max_resident_threads_per_sm = 1024
         self.max_registers_per_sm = 65536
         self.max_shmem_per_sm = 65536
@@ -30,7 +30,7 @@ class CC75(ComputeCapability):
 class CC86(ComputeCapability):
     def __init__(self):
         self.max_resident_blocks_per_sm = 16
-        self.max_resident_warps_per_sm = 48
+        # self.max_resident_warps_per_sm = 48
         self.max_resident_threads_per_sm = 1536
         self.max_registers_per_sm = 65536
         self.max_shmem_per_sm = 102400
@@ -38,7 +38,7 @@ class CC86(ComputeCapability):
 class CC89(ComputeCapability):
     def __init__(self):
         self.max_resident_blocks_per_sm = 24
-        self.max_resident_warps_per_sm = 48
+        # self.max_resident_warps_per_sm = 48
         self.max_resident_threads_per_sm = 1536
         self.max_registers_per_sm = 65536
         self.max_shmem_per_sm = 102400
@@ -64,7 +64,7 @@ class Device:
         numBlocksThatFit_byThreads = self.cc.max_resident_threads_per_sm // threads_per_blk
         numBlocksThatFit_byRegisters = self.cc.max_registers_per_sm // registers_per_blk
         numBlocksThatFit_byShmem = self.cc.max_shmem_per_sm // shmem_per_blk if shmem_per_blk > 0 else inf
-        numBlocksThatFit_byWarps = self.cc.max_resident_warps_per_sm // warps_per_blk
+        # numBlocksThatFit_byWarps = self.cc.max_resident_warps_per_sm // warps_per_blk
 
         numBlocksThatFit = numBlocksThatFit_byThreads
         limitedBy = SMResourceLimitation.THREADS
@@ -77,9 +77,9 @@ class Device:
             numBlocksThatFit = numBlocksThatFit_byShmem
             limitedBy = SMResourceLimitation.SHARED_MEMORY
 
-        if numBlocksThatFit_byWarps < numBlocksThatFit:
-            numBlocksThatFit = numBlocksThatFit_byWarps
-            limitedBy = SMResourceLimitation.WARPS
+        # if numBlocksThatFit_byWarps < numBlocksThatFit:
+        #     numBlocksThatFit = numBlocksThatFit_byWarps
+        #     limitedBy = SMResourceLimitation.WARPS
 
         if numBlocksThatFit * threads_per_blk == self.cc.max_resident_threads_per_sm:
             limitedBy = SMResourceLimitation.NONE
@@ -96,9 +96,11 @@ class Device:
     def launchOccupancy(self, kernel: CuptiActivityKindKernel) -> float:
         # TODO: add docstring that notes that this is the occupancy based on the launch grid
         numBlocksThatFit, _ = self.maxKernelBlksPerSm(kernel)
-        occ = prod(kernel.grid) / (numBlocksThatFit * self.num_sms)
-        occ = min(1.0, occ)
-        return occ
+        # TODO: kinda ugly, refactor so we don't recalc things..
+        if kernel.totalBlocks > numBlocksThatFit * self.num_sms:
+            return self.theoreticalOccupancy(kernel)[0] # can only go up to the theoretical
+        else:
+            return kernel.totalBlocks * kernel.threads_per_blk / (self.cc.max_resident_threads_per_sm * self.num_sms)
 
 class A10(Device):
     def __init__(self):

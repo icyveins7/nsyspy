@@ -80,6 +80,10 @@ class CuptiActivityKindKernel:
     def threads_per_blk(self) -> int:
         return self.blockX * self.blockY * self.blockZ
 
+    @property
+    def totalBlocks(self) -> int:
+        return self.gridX * self.gridY * self.gridZ
+
     # def clusters(self) -> tuple[int, int, int]:
     #     return (self.clusterX, self.clusterY, self.clusterZ)
 
