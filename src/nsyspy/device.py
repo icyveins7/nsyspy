@@ -45,7 +45,6 @@ class CC89(ComputeCapability):
 
 @dataclasses.dataclass
 class Device:
-    name: str
     ver_major: int
     ver_minor: int
     compute_capability: ComputeCapability
@@ -104,12 +103,17 @@ class Device:
 
 class A10(Device):
     def __init__(self):
-        self.name = "A10"
         self.ver_major = 8
         self.ver_minor = 6
         self.compute_capability = CC86()
         self.num_sms = 72
 
+class L4(Device):
+    def __init__(self):
+        self.ver_major = 8
+        self.ver_minor = 9
+        self.compute_capability = CC89()
+        self.num_sms = 58
 
 
 

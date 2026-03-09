@@ -4,6 +4,7 @@ from sew.condition import Condition
 import dataclasses
 
 from .streams import Stream
+from .internal_enums import EnumCudaKernelLaunchType
 
 @dataclasses.dataclass
 class CuptiActivityKindKernel:
@@ -121,12 +122,26 @@ class NvtxEvent:
 
 
 class NsysSqlite(sew.Database):
-    def __init__(self, dbfilepath: str):
+    def __init__(self, dbfilepath: str, lazyLoadEnums: bool = True):
         super().__init__(dbfilepath)
+        # All Enums
+        self._enumCudaKernelLaunchType: EnumCudaKernelLaunchType = EnumCudaKernelLaunchType()
+        if not lazyLoadEnums:
+            # Each getter also overwrites our member vars
+            self._getEnumCudaKernelLaunchType()
 
     @property
     def path(self) -> str:
         return self.dbpath
+
+    def _getEnumCudaKernelLaunchType(self) -> EnumCudaKernelLaunchType:
+        # No-op if already filled
+        if not len(self._enumCudaKernelLaunchType):
+            self['ENUM_CUDA_KERNEL_LAUNCH_TYPE'].select(["id", "label", "name"])
+            while (row := self.fetchone()):
+                self._enumCudaKernelLaunchType.setNameToId(row["name"], row["id"])
+                self._enumCudaKernelLaunchType[row["id"]] = row["label"]
+        return self._enumCudaKernelLaunchType
 
     def findStringIdsContaining(self, stringlist: list[str]) -> dict[int, str]:
         # TODO: docstring, for kernels
