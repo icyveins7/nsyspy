@@ -3,6 +3,8 @@ import sew
 from sew.condition import Condition
 import dataclasses
 
+from .streams import Stream
+
 @dataclasses.dataclass
 class CuptiActivityKindKernel:
     """
@@ -123,6 +125,7 @@ class NsysSqlite(sew.Database):
         return self.dbpath
 
     def findStringIdsContaining(self, stringlist: list[str]) -> dict[int, str]:
+        # TODO: docstring, for kernels
         condition = [
             f"(value LIKE '%{string}%')"
             for string in stringlist
@@ -135,6 +138,7 @@ class NsysSqlite(sew.Database):
         return stringmap
 
     def findStringMatchingId(self, id: int) -> str:
+        # TODO: docstring, for kernels
         self['StringIds'].select("value", f"id = {id}")
         return str(self.fetchone()['value'])
 
@@ -143,6 +147,7 @@ class NsysSqlite(sew.Database):
         start: float = 0.0,
         end: float | None = None
     ) -> list[CuptiActivityKindKernel]:
+        # TODO: docstring
         conditions = [f"start >= {start}"]
         if end is not None:
             conditions.append(
@@ -156,6 +161,35 @@ class NsysSqlite(sew.Database):
         kernels = [CuptiActivityKindKernel(**row) for row in rows]
         return kernels
 
+    def getStreams(self, hwId: int | None = None):
+        if hwId is None:
+            self['TARGET_INFO_CUDA_STREAM'].select("*")
+        else:
+            self['TARGET_INFO_CUDA_STREAM'].select("*", f"hwId = {hwId}")
+        results = [Stream(**row) for row in self.fetchall()]
+        return results
+
+    def findStreamTypeString(self, stream: int | Stream) -> str:
+        """
+        Retrieves the label of the stream.
+
+        Is internally a lookup of the ENUM_CUPTI_STREAM_TYPE table.
+
+        Parameters
+        ----------
+        stream : int | Stream
+            Integer or a Stream object (returned from getStreams()).
+
+        Returns
+        -------
+        label : str
+            The label of the stream.  Usually one of
+            "Non-blocking stream", "Default stream" or "Null stream".
+        """
+        id = stream if isinstance(stream, int) else stream.flag
+        self["ENUM_CUPTI_STREAM_TYPE"].select("label", f"id={id}")
+        result = str(self.fetchone()['label'])
+        return result
 
     def getKernels(
         self,
